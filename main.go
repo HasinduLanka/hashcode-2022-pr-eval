@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ import (
 type TestCase struct {
 	Customers       *[]Customer
 	Ingredients     map[string]struct{}
+	IngredientsArr  []string
 	IngredientLimit int
 }
 
@@ -38,6 +40,15 @@ func main() {
 
 	}
 
+	println("Test case output file A evaluated: " + strconv.Itoa(TestCases[1].EvaluateFile("outputs/A.txt")))
+	println("Test case output file B evaluated: " + strconv.Itoa(TestCases[2].EvaluateFile("outputs/B.txt")))
+	println("Test case output file C evaluated: " + strconv.Itoa(TestCases[3].EvaluateFile("outputs/C.txt")))
+	println("Test case output file D evaluated: " + strconv.Itoa(TestCases[4].EvaluateFile("outputs/D.txt")))
+	println("Test case output file E evaluated: " + strconv.Itoa(TestCases[5].EvaluateFile("outputs/E.txt")))
+
+	tcLetter := "E"
+	tcIndex := 5
+
 	go func() {
 		maxScore := 0
 		for {
@@ -45,29 +56,22 @@ func main() {
 				if recipe.Score > maxScore {
 					maxScore = recipe.Score
 					println("\nNew Best Score: " + strconv.Itoa(maxScore))
-					Log(recipe)
-				} else {
-					print(recipe.Score, " ")
+
+					recipe.Save("outputs/" + tcLetter + strconv.Itoa(maxScore) + ".txt")
+
 				}
 			}
 			time.Sleep(time.Second * 4)
 		}
 	}()
 
-	println("Test case output file A evaluated: " + strconv.Itoa(TestCases[1].EvaluateFile("outputs/A.txt")))
-	println("Test case output file B evaluated: " + strconv.Itoa(TestCases[2].EvaluateFile("outputs/B.txt")))
-	println("Test case output file C evaluated: " + strconv.Itoa(TestCases[3].EvaluateFile("outputs/C.txt")))
-	println("Test case output file D evaluated: " + strconv.Itoa(TestCases[4].EvaluateFile("outputs/D.txt")))
-	println("Test case output file E evaluated: " + strconv.Itoa(TestCases[5].EvaluateFile("outputs/E.txt")))
+	RA := ParseRecipeFromFile("outputs/" + tcLetter + ".txt")
 
-	RA := ParseRecipeFromFile("outputs/C.txt")
+	TCC := TestCases[tcIndex]
+	// Log(TC3)
 
-	TC3 := TestCases[3]
-	// TC3.IngredientLimit = 5
-	Log(TC3)
-
-	TC3.Evaluate(&RA)
-	TC3.FitAdd(&RA)
+	TCC.Evaluate(&RA)
+	TCC.FitAdd(&RA)
 
 	time.Sleep(time.Second * 3)
 
@@ -78,85 +82,73 @@ func main() {
 
 }
 
-func (TC TestCase) FitAdd(recipe *Recipe) *Recipe {
-	// oldScore := TC.Evaluate(recipe)
-	betterScores := make([]Recipe, 0, len(TC.Ingredients))
+func (TC *TestCase) FitAdd(origRecipe *Recipe) *Recipe {
 
-	for ingredient := range TC.Ingredients {
-
-		newRecipe := recipe.Clone()
-		newRecipe.Ingredients[ingredient] = struct{}{}
-		newScore := TC.Evaluate(&newRecipe)
-		if newScore >= recipe.Score {
-			betterScores = append(betterScores, newRecipe)
-		}
+	candidateIngs := TC.CloneIngredients()
+	for ingredient := range origRecipe.Ingredients {
+		delete(candidateIngs, ingredient)
 	}
 
-	// Log(recipe)
-	// Log(betterScores)
-	// println("+++++++++++++++++++++++++++++++++++++++++++++")
+	ingredientsArr := MakeIngredientsArr(candidateIngs)
 
-	if len(betterScores) == 0 {
-		print(".", len(recipe.Ingredients), ". ")
-		return nil
+	counter := 0
 
-	} else if len(betterScores) == 1 {
-		BestRecipes <- betterScores[0]
-		print("*", len(recipe.Ingredients), "* ")
-		return &betterScores[0]
+	addFn := func(indexArr []int) {
+		// LogLine(indexArr)
+		recipe := origRecipe.Clone()
 
-	} else {
-
-		if len(recipe.Ingredients) > TC.IngredientLimit {
-			betterMax := betterScores[0]
-			for _, R := range betterScores {
-				if R.Score > betterMax.Score {
-					betterMax = R
-				}
-			}
-			BestRecipes <- betterMax
-			return &betterMax
+		for _, ing := range indexArr {
+			recipe.Ingredients[ingredientsArr[ing]] = struct{}{}
 		}
 
-		// print("-", len(recipe.Ingredients), "- ")
+		TC.Evaluate(&recipe)
+		// Log(recipe)
 
-		recBetter := make([]Recipe, 0, len(betterScores)/2)
-		for _, R := range betterScores {
-			recResult := TC.FitAdd(&R)
-			if recResult != nil {
-				recBetter = append(recBetter, *recResult)
-			}
-		}
+		BestRecipes <- recipe
 
-		if len(recBetter) == 0 {
-			betterMax := betterScores[0]
-			for _, R := range betterScores {
-				if R.Score > betterMax.Score {
-					betterMax = R
-				}
-			}
-			BestRecipes <- betterMax
-			return &betterMax
-
-		} else if len(recBetter) == 1 {
-			BestRecipes <- recBetter[0]
-			return &recBetter[0]
-
-		} else {
-			recMax := recBetter[0]
-			for _, R := range recBetter {
-				if R.Score > recMax.Score {
-					recMax = R
-				}
-			}
-			BestRecipes <- recMax
-			return &recMax
-		}
+		counter++
 	}
 
+	go func() {
+		for {
+			println(counter)
+			// LogLine(recipe)
+			time.Sleep(time.Second)
+		}
+	}()
+
+	ingCount := 3
+
+	for ingCount = 3; ingCount < 4; ingCount++ {
+		go IndexMaker(make([]int, ingCount), 0, 0, len(ingredientsArr), addFn)
+
+	}
+
+	IndexMaker(make([]int, ingCount), 0, 0, len(ingredientsArr), addFn)
+
+	return nil
 }
 
-func (TC TestCase) Evaluate(recipe *Recipe) int {
+func IndexMaker(arr []int, index int, begin int, length int, fn func([]int)) {
+
+	newIndex := index + 1
+
+	edge := (newIndex == len(arr))
+
+	for i := begin; i < length; i++ {
+		arr[index] = i
+
+		if edge {
+			fn(arr)
+
+		} else {
+			IndexMaker(arr, newIndex, i+1, length, fn)
+		}
+
+	}
+}
+
+func (TC *TestCase) Evaluate(recipe *Recipe) int {
 	score := 0
 	for _, customer := range *TC.Customers {
 		ok := true
@@ -188,6 +180,14 @@ func (TC TestCase) EvaluateFile(filename string) int {
 	S := string(B)
 	recipe := ParseRecipe(S)
 	return TC.Evaluate(&recipe)
+}
+
+func (TC *TestCase) CloneIngredients() map[string]struct{} {
+	Ingredients := make(map[string]struct{}, len(TC.Ingredients))
+	for ingredient := range TC.Ingredients {
+		Ingredients[ingredient] = struct{}{}
+	}
+	return Ingredients
 }
 
 func ParseTest(Case string) TestCase {
@@ -232,8 +232,23 @@ func ParseTest(Case string) TestCase {
 	tc.Customers = &Customers
 	tc.Ingredients = Ingredients
 	tc.IngredientLimit = len(Ingredients)
+	tc.IngredientsArr = MakeIngredientsArr(Ingredients)
 
 	return tc
+}
+
+func MakeIngredientsArr(Ingredients map[string]struct{}) []string {
+	IngredientsArr := make([]string, 0, len(Ingredients))
+
+	for ingredient := range Ingredients {
+		IngredientsArr = append(IngredientsArr, ingredient)
+	}
+
+	sort.Slice(IngredientsArr, func(i, j int) bool {
+		return IngredientsArr[i] < IngredientsArr[j]
+	})
+
+	return IngredientsArr
 }
 
 func ParseRecipe(S string) Recipe {
@@ -263,6 +278,25 @@ func (R Recipe) Clone() Recipe {
 	return recipe
 }
 
+func (R Recipe) Save(filename string) error {
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	file.WriteString(strconv.Itoa(len(R.Ingredients)) + " ")
+
+	for ingredient := range R.Ingredients {
+		_, err := file.WriteString(ingredient + " ")
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func Log(O interface{}) {
 	// B, ee := json.Marshal(O)
 	B, ee := json.MarshalIndent(O, "", "\t")
@@ -272,3 +306,90 @@ func Log(O interface{}) {
 	}
 	println("")
 }
+func LogLine(O interface{}) {
+	B, ee := json.Marshal(O)
+	// B, ee := json.MarshalIndent(O, "", "\t")
+
+	if ee == nil {
+		println(string(B))
+	}
+	println("")
+}
+
+// func (TC TestCase) FitAdd(recipe *Recipe) *Recipe {
+// 	// oldScore := TC.Evaluate(recipe)
+// 	betterScores := make([]Recipe, 0, len(TC.Ingredients))
+
+// 	for ingredient := range TC.Ingredients {
+
+// 		newRecipe := recipe.Clone()
+// 		newRecipe.Ingredients[ingredient] = struct{}{}
+// 		newScore := TC.Evaluate(&newRecipe)
+// 		if newScore >= recipe.Score {
+// 			betterScores = append(betterScores, newRecipe)
+// 		}
+// 	}
+
+// 	// Log(recipe)
+// 	// Log(betterScores)
+// 	// println("+++++++++++++++++++++++++++++++++++++++++++++")
+
+// 	if len(betterScores) == 0 {
+// 		print(".", len(recipe.Ingredients), ". ")
+// 		return nil
+
+// 	} else if len(betterScores) == 1 {
+// 		BestRecipes <- betterScores[0]
+// 		print("*", len(recipe.Ingredients), "* ")
+// 		return &betterScores[0]
+
+// 	} else {
+
+// 		if len(recipe.Ingredients) > TC.IngredientLimit {
+// 			betterMax := betterScores[0]
+// 			for _, R := range betterScores {
+// 				if R.Score > betterMax.Score {
+// 					betterMax = R
+// 				}
+// 			}
+// 			BestRecipes <- betterMax
+// 			return &betterMax
+// 		}
+
+// 		// print("-", len(recipe.Ingredients), "- ")
+
+// 		recBetter := make([]Recipe, 0, len(betterScores)/2)
+// 		for _, R := range betterScores {
+// 			recResult := TC.FitAdd(&R)
+// 			if recResult != nil {
+// 				recBetter = append(recBetter, *recResult)
+// 			}
+// 		}
+
+// 		if len(recBetter) == 0 {
+// 			betterMax := betterScores[0]
+// 			for _, R := range betterScores {
+// 				if R.Score > betterMax.Score {
+// 					betterMax = R
+// 				}
+// 			}
+// 			BestRecipes <- betterMax
+// 			return &betterMax
+
+// 		} else if len(recBetter) == 1 {
+// 			BestRecipes <- recBetter[0]
+// 			return &recBetter[0]
+
+// 		} else {
+// 			recMax := recBetter[0]
+// 			for _, R := range recBetter {
+// 				if R.Score > recMax.Score {
+// 					recMax = R
+// 				}
+// 			}
+// 			BestRecipes <- recMax
+// 			return &recMax
+// 		}
+// 	}
+
+// }
