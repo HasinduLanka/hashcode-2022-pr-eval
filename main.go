@@ -253,7 +253,7 @@ func ParseTest(Case string) TestCase {
 	for i := 0; i < lencustomerFeedbacks; i += 1 {
 		if i%2 == 0 {
 			// Likes
-			likes := strings.Split(customerFeedbacks[i], " ")
+			likes := strings.Split(strings.TrimSpace(customerFeedbacks[i]), " ")
 			if len(likes) > 1 {
 				// Customers[iC].Likes = likes[1:]
 				Customers[iC].Likes = make(map[string]struct{})
@@ -265,7 +265,7 @@ func ParseTest(Case string) TestCase {
 
 		} else {
 			// Dislikes
-			dislikes := strings.Split(customerFeedbacks[i], " ")
+			dislikes := strings.Split(strings.TrimSpace(customerFeedbacks[i]), " ")
 			if len(dislikes) > 1 {
 				// Customers[iC].Dislikes = dislikes[1:]
 				Customers[iC].Dislikes = make(map[string]struct{})
@@ -303,7 +303,7 @@ func MakeIngredientsArr(Ingredients map[string]struct{}) []string {
 }
 
 func ParseRecipe(S string) Recipe {
-	arr := strings.Split(S, " ")
+	arr := strings.Split(strings.TrimSpace(S), " ")
 	if len(arr) == 1 {
 		return Recipe{Ingredients: make(map[string]struct{}), Score: -1}
 	} else {
