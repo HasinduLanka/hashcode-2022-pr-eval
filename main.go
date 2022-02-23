@@ -29,6 +29,9 @@ type Recipe struct {
 var TestCases = map[int]TestCase{}
 var BestRecipes = make(chan Recipe, 10000)
 
+var FitterIndex = 0 // Used to terminate older fit goroutines
+const MaxFitters = 4
+
 func main() {
 	for i := 1; i < 6; i++ {
 		B, _ := os.ReadFile("input_data/" + strconv.Itoa(i) + ".txt")
@@ -46,17 +49,44 @@ func main() {
 	println("Test case output file D evaluated: " + strconv.Itoa(TestCases[4].EvaluateFile("outputs/D.txt")))
 	println("Test case output file E evaluated: " + strconv.Itoa(TestCases[5].EvaluateFile("outputs/E.txt")))
 
-	tcLetter := "E"
-	tcIndex := 5
+	tcLetter := "D"
+	tcIndex := 4
+
+	RA := ParseRecipeFromFile("outputs/" + tcLetter + ".txt")
+
+	TCC := TestCases[tcIndex]
+	// Log(TC3)
+
+	TCC.Evaluate(&RA)
 
 	go func() {
 		maxScore := 0
+		var bestRecipe *Recipe = nil
+
+		go func() {
+			runningMaxScore := 0
+			for {
+				if bestRecipe != nil {
+					if runningMaxScore < bestRecipe.Score {
+						runningMaxScore = bestRecipe.Score
+						println("\nRunning Max Score: " + strconv.Itoa(runningMaxScore))
+
+						bestRecipeClone := bestRecipe.Clone()
+						go TCC.FitAdd(&bestRecipeClone)
+					}
+				}
+				time.Sleep(time.Second * 10)
+			}
+		}()
+
 		for {
 			for recipe := range BestRecipes {
 				if recipe.Score > maxScore {
 					maxScore = recipe.Score
-					println("\nNew Best Score: " + strconv.Itoa(maxScore))
+					println("New Best Score: " + strconv.Itoa(maxScore))
 
+					recipeClone := recipe.Clone()
+					bestRecipe = &recipeClone
 					recipe.Save("outputs/" + tcLetter + strconv.Itoa(maxScore) + ".txt")
 
 				}
@@ -65,24 +95,20 @@ func main() {
 		}
 	}()
 
-	RA := ParseRecipeFromFile("outputs/" + tcLetter + ".txt")
-
-	TCC := TestCases[tcIndex]
-	// Log(TC3)
-
-	TCC.Evaluate(&RA)
+	// Start the first fit
 	TCC.FitAdd(&RA)
 
-	time.Sleep(time.Second * 3)
-
-	// Wait until chaned is closed
-	for len(BestRecipes) > 0 {
-		time.Sleep(time.Second * 4)
+	// Wait until sun burns out
+	for {
+		time.Sleep(time.Second * 60)
 	}
 
 }
 
 func (TC *TestCase) FitAdd(origRecipe *Recipe) *Recipe {
+
+	maxFitterIndex := FitterIndex + MaxFitters
+	FitterIndex++
 
 	candidateIngs := TC.CloneIngredients()
 	for ingredient := range origRecipe.Ingredients {
@@ -91,9 +117,9 @@ func (TC *TestCase) FitAdd(origRecipe *Recipe) *Recipe {
 
 	ingredientsArr := MakeIngredientsArr(candidateIngs)
 
-	counter := 0
+	// counter := 0
 
-	addFn := func(indexArr []int) {
+	addFn := func(indexArr []int) bool {
 		// LogLine(indexArr)
 		recipe := origRecipe.Clone()
 
@@ -106,20 +132,23 @@ func (TC *TestCase) FitAdd(origRecipe *Recipe) *Recipe {
 
 		BestRecipes <- recipe
 
-		counter++
+		// Return true to terminate the index maker
+		return maxFitterIndex < FitterIndex
+
+		// counter++
 	}
 
-	go func() {
-		for {
-			println(counter)
-			// LogLine(recipe)
-			time.Sleep(time.Second)
-		}
-	}()
+	// go func() {
+	// 	for {
+	// 		println(counter)
+	// 		// LogLine(recipe)
+	// 		time.Sleep(time.Second)
+	// 	}
+	// }()
 
-	ingCount := 3
+	ingCount := 2
 
-	for ingCount = 3; ingCount < 4; ingCount++ {
+	for ingCount = 2; ingCount < 4; ingCount++ {
 		go IndexMaker(make([]int, ingCount), 0, 0, len(ingredientsArr), addFn)
 
 	}
@@ -129,7 +158,7 @@ func (TC *TestCase) FitAdd(origRecipe *Recipe) *Recipe {
 	return nil
 }
 
-func IndexMaker(arr []int, index int, begin int, length int, fn func([]int)) {
+func IndexMaker(arr []int, index int, begin int, length int, fn func([]int) bool) bool {
 
 	newIndex := index + 1
 
@@ -139,13 +168,19 @@ func IndexMaker(arr []int, index int, begin int, length int, fn func([]int)) {
 		arr[index] = i
 
 		if edge {
-			fn(arr)
+			if fn(arr) {
+				println("Terminating ", index, begin, length)
+				return true
+			}
 
 		} else {
-			IndexMaker(arr, newIndex, i+1, length, fn)
+			if IndexMaker(arr, newIndex, i+1, length, fn) {
+				return true
+			}
 		}
 
 	}
+	return false
 }
 
 func (TC *TestCase) Evaluate(recipe *Recipe) int {
