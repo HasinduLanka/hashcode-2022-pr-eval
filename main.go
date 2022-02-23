@@ -33,6 +33,25 @@ var FitterIndex = 0 // Used to terminate older fit goroutines
 const MaxFitters = 4
 
 func main() {
+	tcLetter := "E"
+	tcIndex := 5
+
+	if len(os.Args) == 3 {
+		Log(os.Args)
+		tcLetter = os.Args[1]
+		tcIndexArg, err := strconv.Atoi(os.Args[2])
+
+		if err != nil {
+			panic(err)
+		}
+
+		tcIndex = tcIndexArg
+	} else if len(os.Args) != 1 {
+		println("Usage: go run . [Test Case Letter] [Test Case Index]")
+		println("Example: go run . D 4")
+		return
+	}
+
 	for i := 1; i < 6; i++ {
 		B, _ := os.ReadFile("input_data/" + strconv.Itoa(i) + ".txt")
 		Case := string(B)
@@ -48,9 +67,6 @@ func main() {
 	println("Test case output file C evaluated: " + strconv.Itoa(TestCases[3].EvaluateFile("outputs/C.txt")))
 	println("Test case output file D evaluated: " + strconv.Itoa(TestCases[4].EvaluateFile("outputs/D.txt")))
 	println("Test case output file E evaluated: " + strconv.Itoa(TestCases[5].EvaluateFile("outputs/E.txt")))
-
-	tcLetter := "E"
-	tcIndex := 5
 
 	RA := ParseRecipeFromFile("outputs/" + tcLetter + ".txt")
 
