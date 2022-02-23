@@ -261,6 +261,8 @@ func ParseTest(Case string) TestCase {
 					Customers[iC].Likes[like] = struct{}{}
 					Ingredients[like] = struct{}{}
 				}
+
+				delete(Customers[iC].Likes, "")
 			}
 
 		} else {
@@ -275,9 +277,13 @@ func ParseTest(Case string) TestCase {
 				}
 			}
 
+			delete(Customers[iC].Dislikes, "")
+
 			iC++
 		}
 	}
+
+	delete(Ingredients, "")
 
 	tc := TestCase{}
 	tc.Customers = &Customers
@@ -311,6 +317,7 @@ func ParseRecipe(S string) Recipe {
 		for _, item := range arr[1:] {
 			recipe[item] = struct{}{}
 		}
+		delete(recipe, "")
 		return Recipe{Ingredients: recipe, Score: -1}
 	}
 }
