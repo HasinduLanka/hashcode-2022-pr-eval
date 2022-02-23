@@ -49,8 +49,8 @@ func main() {
 	println("Test case output file D evaluated: " + strconv.Itoa(TestCases[4].EvaluateFile("outputs/D.txt")))
 	println("Test case output file E evaluated: " + strconv.Itoa(TestCases[5].EvaluateFile("outputs/E.txt")))
 
-	tcLetter := "D"
-	tcIndex := 4
+	tcLetter := "E"
+	tcIndex := 5
 
 	RA := ParseRecipeFromFile("outputs/" + tcLetter + ".txt")
 
